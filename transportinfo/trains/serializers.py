@@ -1,23 +1,24 @@
 from rest_framework import serializers
 from datetime import datetime
 from django.db.models import Q
+from .models import Service,LatestDepartures
 #from .models import *
 
-"""
-class SchoolSerializer(serializers.ModelSerializer):
-    poster_id = serializers.ReadOnlyField(source='poster.id')
-    deaths = serializers.SerializerMethodField()
+
+class ServiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Service
+        fields = ('id','departuretime','arrivaltime','depfriendly','arrfriendly')
+
+class TrainServicesSerializer(serializers.ModelSerializer):
+    earliest_service = serializers.DateTimeField()
+    services = serializers.SerializerMethodField()
 
     class Meta:
-        model = School
-        fields = ('id','name','dateadded','deaths','poster_id')
+        model = LatestDepartures
+        fields = ('station','station_name','earliest_service','services')
 
-    def get_deaths(self,obj):
-
-        try:
-            schooldeaths = Person.objects.filter(persondiedschool__school=obj)
-            deathdata = PeopleSerializer(schooldeaths,many=True).data
-        except Exception as e:
-            deathdata = None
-        return deathdata
-        """
+    def get_services(self,obj):
+        services = Service.objects.filter(departure = obj)
+        servicedata = ServiceSerializer(services,many=True)
+        return servicedata.data
