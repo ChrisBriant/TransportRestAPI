@@ -1,0 +1,1 @@
+trains/trainslatest/?start=BSW&&dest=HAG

@@ -88,8 +88,7 @@ def updateservices(stationname,destination):
             for s in services:
                 #Create service
                 service_details = DARWIN_SESH.get_service_details(s.service_id)
-                departuretime = datetime.strptime(datenow + " " + service_details.std,'%d/%m/%Y %H:%M')
-                depfriendly = datetime.strptime(datenow + " " + service_details.std,'%d/%m/%Y %H:%M').time()
+                departuretime = datetime.strptime(datenow + " " + service_details.std,'%d/%m/%Y %H:%M').astimezone(pytz.timezone("Europe/London"))
                 #Need to handle None
                 if service_details.etd:
                     train_schedule_status = service_details.etd
@@ -103,19 +102,17 @@ def updateservices(stationname,destination):
                 if len(callingpoints) > 0:
                     destination_found = False
                     for c in callingpoints:
-                        #print(c.crs,destination)
+                        print(c.crs,destination)
                         if c.crs == destination:
                             destination_found = True
                             destination_found_count += 1
-                            arrivaltime = datetime.strptime(datenow + " " + c.st,'%d/%m/%Y %H:%M') #.astimezone(pytz.timezone("Europe/London"))
-                            arrfriendly = datetime.strptime(datenow + " " + c.st,'%d/%m/%Y %H:%M').time()
-                            #print("HERE")
+                            arrivaltime = datetime.strptime(datenow + " " + c.st,'%d/%m/%Y %H:%M').astimezone(pytz.timezone("Europe/London"))
                             try:
-                                #tz = timezone('Europe/London')
+                                tz = timezone('Europe/London')
                                 service = Service.objects.create(
                                     departuretime = departuretime,
                                     arrivaltime = arrivaltime,
-                                    depfriendly = depfriendly.strftime('%H:%M'),
+                                    depfriendly = departuretime.strftime('%H:%M'),
                                     #depfriendly = pytz.utc.localize(departuretime, is_dst=None).astimezone(tz).strftime('%H:%M'),
                                     arrfriendly = arrivaltime.strftime('%H:%M'),
                                     schedule_status = train_schedule_status,
@@ -141,23 +138,36 @@ def trainslatest(request):
     #Collect information from query the stations from and the destination
     startstations = request.query_params['start'].split(",")
     destination = request.query_params['dest']
-    olddepartures = LatestDepartures.objects.filter(daterecorded__lte=datetime.now() + timedelta(minutes=-5))
-    latestdepartures  = LatestDepartures.objects.filter(station__in=startstations,destination=destination,daterecorded__gte=datetime.now() + timedelta(minutes=-5))
-    olddepartures.delete() #Remove if five minutes old
-    #latestdepartures  = LatestDepartures.objects.filter(station__in=startstations,destination=destination,daterecorded__gte=datetime.now().astimezone(pytz.timezone("Europe/London")) + timedelta(minutes=5))
+
+    #Get the info from the database
+
+    #Get the date time as the timezone appropriate for the UK
+    #utc_time = datetime.now()
+    #tz = pytz.timezone('Europe/London')
+    #now_uk_time = pytz.utc.localize(utc_time, is_dst=None).astimezone(tz)
+    #latestdepartures  = LatestDepartures.objects.annotate(earliest_service=Min('service__departuretime')).filter(station__in=startstations,destination=destination,earliest_service__gte=timezone.now())
+    latestdepartures  = LatestDepartures.objects.annotate(earliest_service=Min('service__departuretime')).filter(station__in=startstations,destination=destination)
     #latestdepartures  = LatestDepartures.objects.filter(station__in=startstations,destination=destination).annotate(earliest_service=Min('service__departuretime'))
-    #latestdepartures = LatestDepartures.objects.filter(station__in=startstations,destination=destination)
-    #[print(d.daterecorded) for d in olddepartures]
-    print("now")
-    print(datetime.now() + timedelta(minutes=5))
+
     if len(latestdepartures) > 0:
-        print("ZEEEERRRRROOOOO")
-        outdata = TrainServicesSerializer(latestdepartures,many=True)
+        if latestdepartures[0].earliest_service:
+            earliest = latestdepartures[0].earliest_service
+            print("Earliest Exists",earliest)
+        else:
+            earliest = timezone.now() + timedelta(minutes=-1)
+            print("Earliest",earliest)
+            #print(latestdepartures[0].__dict__)
+            [print(l.__dict__) for l in latestdepartures]
+        if earliest >= timezone.now():
+            outdata = TrainServicesSerializer(latestdepartures,many=True)
+        else:
+            #purge database of old services
+            [service.delete for service in latestdepartures]
+            outdata = update_and_serialize(startstations,destination)
     else:
         outdata = update_and_serialize(startstations,destination)
     return Response(outdata.data)
-    #return Response(json.dumps("Hello"))
-
+    #return Response(json.dumps("true"))
 
 #Update the services and then serialize for output
 def update_and_serialize(startstations,destination):
