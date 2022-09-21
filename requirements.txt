@@ -5,7 +5,7 @@ Django==2.2
 django-cors-headers==3.0.2
 django-filter==2.2.0
 djangorestframework==3.10.1
-jwcrypto==0.6.0
+jwcrypto==1.4
 Markdown==3.1.1
 nre-darwin-py==0.3.0
 pkg-resources==0.0.0
